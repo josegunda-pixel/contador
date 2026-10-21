@@ -90,7 +90,12 @@
 /* ===== CONFIGURACIÓN =====
    Pon el MISMO "ESPACIO" y "CLAVE" en todas tus páginas
    y todas sumarán en un único total. */
-const ESPACIO = "zonatutorial";   // cámbialo por algo único tuyo
+// Tu base de datos propia (Supabase). Pega aquí tus dos datos:
+const SUPABASE_URL = "https://qitcpgcucdvszxibdnok.supabase.co";   // p. ej. "https://abcdxyz.supabase.co"
+const SUPABASE_KEY = "sb_publishable_yqswLNBBmdj96NCfsBFGyQ_51FatvUD";   // la clave "anon public" (empieza por eyJ...)
+
+// Mientras estén vacíos, usa un servicio público de prueba.
+const ESPACIO = "zonatutorial";
 const CLAVE   = "visitas-total";
 const DIGITOS = 6;
 
@@ -126,6 +131,22 @@ window.addEventListener("resize", () => mostrar(actual));
 let actual = 0;
 
 async function pedir(accion) {
+  if (SUPABASE_URL && SUPABASE_KEY) {
+    const fn = accion ? "sumar_visita" : "leer_visitas";
+    const r = await fetch(SUPABASE_URL.replace(/\/$/, "") + "/rest/v1/rpc/" + fn, {
+      method: "POST",
+      headers: Object.assign(
+        { "apikey": SUPABASE_KEY, "Content-Type": "application/json" },
+        // Las claves antiguas (eyJ...) van también como Bearer; las nuevas (sb_publishable_...) no
+        SUPABASE_KEY.startsWith("eyJ") ? { "Authorization": "Bearer " + SUPABASE_KEY } : {}
+      ),
+      body: "{}"
+    });
+    if (!r.ok) throw new Error("fallo");
+    const n = Number(await r.json());
+    if (isNaN(n)) throw new Error("fallo");
+    return n;
+  }
   const url = "https://api.counterapi.dev/v1/" + ESPACIO + "/" + CLAVE + (accion ? "/" + accion : "");
   const r = await fetch(url);
   if (!r.ok) throw new Error("fallo");
