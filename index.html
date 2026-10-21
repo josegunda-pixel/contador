@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contador de visitas</title>
+<style>
+  :root{
+    --fondo:#2b3a42;
+    --carcasa:#b9b2a1;
+    --carcasa-oscura:#6f6a5d;
+    --rodillo:#141414;
+    --numero:#f2ead3;
+    --rojo:#c8372d;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--fondo);
+    display:flex;align-items:center;justify-content:center;
+    font-family:Georgia,"Times New Roman",serif;
+  }
+  .contador{
+    background:linear-gradient(180deg,#cfc8b6,var(--carcasa) 45%,var(--carcasa-oscura));
+    border:4px solid #4d493f;
+    border-radius:14px;
+    padding:18px 26px 22px;
+    box-shadow:0 10px 0 #1d272c,0 18px 30px rgba(0,0,0,.45);
+    text-align:center;
+  }
+  .titulo{
+    margin:0 0 12px;
+    font-size:clamp(16px,3.6vw,24px);
+    color:#2a2822;
+    font-style:italic;
+    letter-spacing:.5px;
+  }
+  .rodillos{
+    display:flex;gap:4px;
+    background:#000;
+    padding:8px;
+    border-radius:6px;
+    border:3px solid #3b382f;
+    box-shadow:inset 0 0 10px #000;
+    justify-content:center;
+  }
+  .rodillo{
+    --alto:clamp(54px,14vw,96px);
+    width:calc(var(--alto)*.66);
+    height:var(--alto);
+    overflow:hidden;
+    background:var(--rodillo);
+    border-radius:4px;
+    position:relative;
+  }
+  .rodillo::after{ /* sombra de cilindro */
+    content:"";position:absolute;inset:0;
+    background:linear-gradient(180deg,rgba(0,0,0,.75),transparent 28%,transparent 72%,rgba(0,0,0,.75));
+    pointer-events:none;
+  }
+  .tira{
+    transition:transform 1.6s cubic-bezier(.2,.8,.2,1);
+  }
+  .tira span{
+    display:block;
+    height:var(--alto);
+    line-height:var(--alto);
+    font-size:calc(var(--alto)*.78);
+    font-family:"Courier New",Courier,monospace;
+    font-weight:bold;
+    color:var(--numero);
+  }
+  .pie{
+    margin:12px 0 0;
+    font-size:clamp(12px,2.8vw,15px);
+    color:#2a2822;
+  }
+  .pie b{color:var(--rojo)}
+  @media (prefers-reduced-motion:reduce){ .tira{transition:none} }
+</style>
+</head>
+<body>
+
+<div class="contador" role="status" aria-live="polite">
+  <p class="titulo">Eres el visitante número</p>
+  <div class="rodillos" id="rodillos"></div>
+</div>
+
+<script>
+/* ===== CONFIGURACIÓN =====
+   Pon el MISMO "ESPACIO" y "CLAVE" en todas tus páginas
+   y todas sumarán en un único total. */
+const ESPACIO = "zonatutorial";   // cámbialo por algo único tuyo
+const CLAVE   = "visitas-total";
+const DIGITOS = 6;
+
+const cont = document.getElementById("rodillos");
+const tiras = [];
+
+for (let i = 0; i < DIGITOS; i++) {
+  const r = document.createElement("div");
+  r.className = "rodillo";
+  const t = document.createElement("div");
+  t.className = "tira";
+  for (let n = 0; n <= 9; n++) {
+    const s = document.createElement("span");
+    s.textContent = n;
+    t.appendChild(s);
+  }
+  r.appendChild(t);
+  cont.appendChild(r);
+  tiras.push(t);
+}
+
+function mostrar(numero) {
+  const texto = String(numero).padStart(DIGITOS, "0").slice(-DIGITOS);
+  const alto = tiras[0].parentElement.clientHeight;
+  tiras.forEach((t, i) => {
+    t.style.transform = "translateY(" + (-Number(texto[i]) * alto) + "px)";
+  });
+}
+
+mostrar(0);
+window.addEventListener("resize", () => mostrar(actual));
+
+let actual = 0;
+
+async function pedir(accion) {
+  const url = "https://api.counterapi.dev/v1/" + ESPACIO + "/" + CLAVE + (accion ? "/" + accion : "");
+  const r = await fetch(url);
+  if (!r.ok) throw new Error("fallo");
+  const d = await r.json();
+  return d.count;
+}
+
+async function iniciar() {
+  // Suma 1 solo la primera vez que se abre la web en esta pestaña
+  // (si recargan la página no se vuelve a sumar).
+  const yaContado = sessionStorage.getItem("visita-contada");
+  const accion = yaContado ? "" : "up";
+  let ok = false;
+
+  // Hasta 4 intentos con espera creciente
+  for (let i = 0; i < 4 && !ok; i++) {
+    try {
+      actual = await pedir(accion);
+      ok = true;
+    } catch (e) {
+      await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+    }
+  }
+
+  if (ok) {
+    sessionStorage.setItem("visita-contada", "1");
+    localStorage.setItem("ultimo-total", actual); // guardamos el último número real
+  } else {
+    // Si el servicio no responde, se muestra el último número real visto
+    actual = Number(localStorage.getItem("ultimo-total") || 0);
+  }
+  setTimeout(() => mostrar(actual), 300);
+}
+iniciar();
+</script>
+</body>
+</html>
